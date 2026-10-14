@@ -10,14 +10,18 @@
     "test": "node --test --test-concurrency=1 tests/*.test.mjs",
     "data:fetch": "node tools/build-data/fetch.mjs",
     "data": "node tools/build-data/index.mjs",
-    "balance": "node tools/balance.mjs"
+    "balance": "node tools/balance.mjs",
+    "e2e": "node tests/e2e/play.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",
+    "@preact/signals": "2.11.2",
     "@supabase/supabase-js": "2.117.2",
-    "maplibre-gl": "6.11.2"
+    "maplibre-gl": "6.11.2",
+    "preact": "10.29.8"
   },
   "devDependencies": {
+    "@preact/preset-vite": "2.10.6",
     "pbf": "3.3.0",
     "pngjs": "7.0.0",
     "typescript": "6.0.3",

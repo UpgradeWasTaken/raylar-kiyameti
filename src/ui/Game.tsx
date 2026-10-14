@@ -1,0 +1,157 @@
+import { effect, signal } from '@preact/signals';
+import { useEffect, useRef } from 'preact/hooks';
+import { GameMap } from '../map/map';
+import { store } from '../game/store';
+import { maybeRunBots } from '../game/bots';
+import { t, money, gameDate, nf } from '../i18n';
+import { bindTools } from './tools';
+import { mapRef, tool, win, toasts, layers, selection, type Tool, type WindowId } from './state';
+import { Icon } from './icons';
+import { ToolPanel } from './panels';
+import { Inspector } from './inspector';
+import { Windows } from './windows';
+
+const clockText = signal('');
+
+export function Game(props: { onExit: () => void }) {
+  const mapEl = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const gm = new GameMap(mapEl.current!);
+    mapRef.current = gm;
+    (globalThis as any).__gm = gm;
+    bindTools(gm);
+    const local = store.clock?.mode === 'manual';
+    let raf = 0, last = performance.now(), lastClock = 0, stopped = false;
+    const frame = (ts: number) => {
+      const dt = Math.min(0.5, (ts - last) / 1000);
+      last = ts;
+      store.tickLocal(dt);
+      gm.overlay?.draw();
+      if (ts - lastClock > 250) { lastClock = ts; clockText.value = gameDate(store.now(), store.clock?.start_date); }
+      raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    let busy = false;
+    const syncTimer = setInterval(async () => {
+      if (busy || stopped) return;
+      busy = true;
+      try {
+        if (local) { await store.flushTime(); await maybeRunBots(); }
+        await store.sync();
+      } catch (e) { console.warn('sync', e); } finally { busy = false; }
+    }, local ? 1000 : 3000);
+    // In the shared world any client may advance the economy; the server ignores calls that are not due.
+    const settleTimer = local ? 0 : setInterval(() => { store.query('settle').catch(() => undefined); }, 20000);
+    const dispose = effect(() => { void store.version.value; gm.refresh(); });
+    const disposeLayers = effect(() => {
+      const l = layers.value;
+      gm.ready.then(() => {
+        gm.setLayerVisible('hillshade', l.hillshade);
+        gm.setLayerVisible('osm', l.osm);
+        gm.setLayerVisible('population', l.population);
+        gm.setLayerVisible('district-borders', l.districts);
+      });
+    });
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(raf); clearInterval(syncTimer); if (settleTimer) clearInterval(settleTimer);
+      dispose(); disposeLayers(); gm.map.remove(); mapRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div class="game">
+      <div ref={mapEl} class="map" />
+      <TopBar onExit={props.onExit} />
+      <Toolbar />
+      <ToolPanel />
+      <Inspector />
+      <Windows onExit={props.onExit} />
+      <Toasts />
+    </div>
+  );
+}
+
+const SPEEDS = [0, 1, 5, 20, 60];
+
+function TopBar(_props: { onExit: () => void }) {
+  void store.version.value;
+  const me = store.me;
+  const unread = [...store.notices.values()].filter((n) => !n.read).length;
+  const pending = [...store.offers.values()].filter((o) => o.to_co === store.uid && o.status === 'pending').length;
+  const local = store.clock?.mode === 'manual';
+  const net = me?.stats?.net_h ?? 0;
+  const div = store.config.xp_level_div || 300;
+  const lvl = me?.level ?? 1;
+  const xpLo = (lvl - 1) ** 2 * div, xpHi = lvl ** 2 * div;
+  const xpPct = me ? Math.max(0, Math.min(1, (me.xp - xpLo) / (xpHi - xpLo))) : 0;
+  const btn = (id: WindowId, icon: string, label: string, badge = 0) => (
+    <button class={`top-btn ${win.value === id ? 'on' : ''}`} onClick={() => { win.value = win.value === id ? null : id; }} title={label} aria-label={label}>
+      <Icon name={icon} />{badge ? <span class="badge">{badge}</span> : null}
+    </button>
+  );
+  return (
+    <header class="topbar">
+      <div class="brand"><div class="logo-mark small" aria-hidden="true"><span /><span /><span /></div><b>{t('app.title')}</b></div>
+      {me ? (
+        <div class="company">
+          <i class="chip" style={{ background: me.color }} />
+          <span class="name">{me.name}</span>
+          <span class="level" title={`XP ${nf(me.xp)}`}>{t('top.level', { n: lvl })}<span class="xp"><span style={{ width: `${xpPct * 100}%` }} /></span></span>
+        </div>
+      ) : null}
+      <div class="money">
+        <span class="label">{t('top.cash')}</span>
+        <b class={me && me.balance < 0 ? 'bad' : ''}>{money(me?.balance)}</b>
+        <span class={`net ${net >= 0 ? 'good' : 'bad'}`} title={t('top.net')}>{money(net, { sign: true })}{t('common.per_h')}</span>
+      </div>
+      <div class="clock">
+        <span>{clockText.value}</span>
+        {local ? (
+          <div class="speeds" role="group">
+            {SPEEDS.map((s) => (
+              <button class={store.speed.value === s ? 'on' : ''} onClick={() => { store.speed.value = s; }} title={s === 0 ? t('top.speed.pause') : `${s}×`}>
+                {s === 0 ? <Icon name="pause" size={14} /> : `${s}×`}
+              </button>
+            ))}
+          </div>
+        ) : <span class="live">● LIVE</span>}
+      </div>
+      <nav class="top-actions">
+        {btn('lines', 'train', t('win.lines'))}
+        {btn('finance', 'finance', t('win.finance'))}
+        {btn('market', 'market', t('win.market'), pending)}
+        {btn('rank', 'rank', t('win.rank'))}
+        {btn('chat', 'chat', t('win.chat'))}
+        {btn('notices', 'bell', t('win.notices'), unread)}
+        {btn('help', 'help', t('win.help'))}
+        {btn('settings', 'settings', t('win.settings'))}
+      </nav>
+    </header>
+  );
+}
+
+const TOOLS: [Tool, string, string][] = [
+  ['inspect', 'inspect', 'tool.inspect'], ['track', 'track', 'tool.track'], ['station', 'station', 'tool.station'],
+  ['line', 'line', 'tool.line'], ['demolish', 'demolish', 'tool.demolish'],
+];
+
+function Toolbar() {
+  return (
+    <nav class="toolbar" aria-label="tools">
+      {TOOLS.map(([id, icon, key], i) => (
+        <button class={tool.value === id ? 'on' : ''} onClick={() => { tool.value = id; if (id !== 'inspect') selection.value = null; }} title={`${t(key)} (${i + 1})`}>
+          <Icon name={icon} size={22} /><span>{t(key)}</span>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function Toasts() {
+  return (
+    <div class="toasts" aria-live="polite">
+      {toasts.value.map((x) => <div class={`toast ${x.kind}`} key={x.id}>{x.text}</div>)}
+    </div>
+  );
+}
