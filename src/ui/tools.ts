@@ -130,7 +130,6 @@ export async function quoteLine(estimate = false) {
   const args = { model: d.model, stops: d.stops, legs: d.legs, trains: d.trains, fare_mult: d.fare_mult };
   try {
     const q = await store.query(estimate ? 'estimate_line' : 'quote_line', args);
-    if (estimate && store.clock?.mode === 'manual') { /* estimate is a write-locked call; time continues */ }
     lineDraft.value = { ...lineDraft.value, quote: q, estimate: estimate ? q.estimate ?? null : lineDraft.value.estimate, busy: false };
   } catch (e) {
     lineDraft.value = { ...lineDraft.value, busy: false };

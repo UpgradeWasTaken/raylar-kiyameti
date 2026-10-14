@@ -5,7 +5,6 @@ import preact from '@preact/preset-vite';
 export default defineConfig({
   base: './',
   plugins: [preact()],
-  optimizeDeps: { exclude: ['@electric-sql/pglite'] },
   worker: { format: 'es' },
   build: {
     target: 'es2022',

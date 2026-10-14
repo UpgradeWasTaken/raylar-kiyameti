@@ -1,36 +1,20 @@
-// End-to-end check of the offline game in headless Chromium: found a company, open a line,
-// lay track, build a station, let time run, reload and continue.
-// Usage: npm run build && npx vite preview --port 4173 & node tests/e2e/play.mjs
-import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
+// End-to-end check of a solo session in the shared world (headless Chromium): sign in as a guest, found a
+// company, open a line on state track, lay track, build a station, earn money, reload and continue.
 import assert from 'node:assert/strict';
+import { launch, joinAsGuest, step, RUN, OFFSET, SHOTS } from './helpers.mjs';
 
-const require = createRequire(`${execSync('npm root -g').toString().trim()}/`);
-const { chromium } = require('playwright');
-const URL = process.env.GAME_URL || 'http://localhost:4173/';
-const SHOTS = process.env.SHOTS || '.scratch';
-
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
+const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'tr-TR' });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-const step = (s) => console.log(`• ${s}`);
 const store = (fn, arg) => page.evaluate(fn, arg);
 
-await page.goto(URL);
-step('start screen');
-await page.click('.mode-card >> nth=0');
-await page.waitForSelector('.screen.found input', { timeout: 180000 });
-step('founding a company with two AI rivals');
-await page.fill('.screen.found input:not([type])', 'Test Raylı');
-await page.fill('.screen.found input[type=range]', '2');
-await page.click('.screen.found button.primary');
-await page.waitForSelector('.topbar .company', { timeout: 60000 });
+step('signing in as a guest and founding a company');
+const NAME = `Test Raylı ${RUN}`;
+await joinAsGuest(page, NAME);
 await page.waitForTimeout(2500);
-const cos = await store(() => [...window.__rk.companies.values()].map((c) => c.kind));
-assert.equal(cos.filter((k) => k === 'bot').length, 2, 'two bots');
 await page.screenshot({ path: `${SHOTS}/e2e-1-world.png` });
 
 step('opening an intercity line Ankara – Eskişehir from the line tool');
@@ -64,7 +48,7 @@ step('line created');
 
 step('laying conventional track near Konya and building a station on it');
 await page.click('.toolbar button >> nth=1');
-await zoomTo(32.55, 37.95, 10);
+await zoomTo(32.55 + OFFSET, 37.95, 10);
 await page.mouse.click(520, 450);
 await page.mouse.click(720, 420);
 await page.mouse.click(900, 470);
@@ -82,17 +66,17 @@ await page.click('.toolpanel .quote button.primary');
 await page.waitForFunction(() => [...window.__rk.stations.values()].some((s) => s.owner === window.__rk.uid), null, { timeout: 30000 });
 step('track and station built');
 
-step('running time at 60× for a while');
+step('the shared clock runs; the economy settles and the line carries passengers');
 await page.keyboard.press('Escape');
 await page.click('.toolbar button >> nth=0');
-const bal0 = await store(() => window.__rk.me.balance);
-await page.click('.speeds button:has-text("60×")');
+const t0 = await store(() => window.__rk.now());
 await zoomTo(31.5, 39.8, 7.5);
-await page.waitForTimeout(15000);
-const after = await store(() => ({ bal: window.__rk.me.balance, hours: window.__rk.now(), line: [...window.__rk.lines.values()].find((l) => l.owner === window.__rk.uid) }));
-console.log(`  game time ${after.hours.toFixed(1)} h, balance ${Math.round(bal0)} → ${Math.round(after.bal)}, line pax/h ${after.line.pax_h}`);
-assert.ok(after.hours > 3, 'time advanced');
-assert.ok(after.line.pax_h > 0, 'line carries passengers');
+await page.waitForTimeout(8000);
+await store(() => window.__rk.act('settle'));
+await page.waitForFunction(() => ([...window.__rk.lines.values()].find((l) => l.owner === window.__rk.uid)?.pax_h ?? 0) > 0, null, { timeout: 30000, polling: 1000 });
+const after = await store(() => ({ hours: window.__rk.now(), line: [...window.__rk.lines.values()].find((l) => l.owner === window.__rk.uid), net: window.__rk.me.stats.net_h }));
+console.log(`  game time ${t0.toFixed(2)} → ${after.hours.toFixed(2)} h, line ${Math.round(after.line.pax_h)} pax/h, net ₺${after.net}/h`);
+assert.ok(after.hours > t0, 'time advanced');
 await page.screenshot({ path: `${SHOTS}/e2e-4-running.png` });
 const trainPx = await page.evaluate(() => {
   const c = document.querySelector('.train-overlay');
@@ -111,14 +95,12 @@ await page.click('.top-actions button >> nth=1');
 await page.waitForTimeout(800);
 await page.screenshot({ path: `${SHOTS}/e2e-5-finance.png` });
 
-step('reload and continue the saved world');
-await page.click('.speeds button >> nth=0');
-await page.waitForTimeout(1500);
+step('reload: the session is remembered and the company is still there');
 await page.reload();
-await page.click('.mode-card >> nth=0');
-await page.waitForSelector('.topbar .company', { timeout: 120000 });
+await page.click('.start-card button.primary:not([disabled])', { timeout: 20000 });
+await page.waitForSelector('.topbar .company', { timeout: 60000 });
 const kept = await store(() => window.__rk.me?.name);
-assert.equal(kept, 'Test Raylı');
+assert.equal(kept, NAME);
 
 const serious = errors.filter((e) => !/GL Driver|GroupMarker|tile\.openstreetmap|Failed to load resource/.test(e));
 if (serious.length) console.log('console errors:\n  ' + serious.join('\n  '));

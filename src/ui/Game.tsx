@@ -2,11 +2,10 @@ import { effect, signal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { GameMap } from '../map/map';
 import { store } from '../game/store';
-import { maybeRunBots } from '../game/bots';
 import { t, money, gameDate, nf } from '../i18n';
 import { bindTools } from './tools';
 import { mapRef, tool, win, toasts, layers, selection, hover, toast, type Tool, type WindowId } from './state';
-import { localStorageGet, localStorageSet } from '../backend/local';
+import { localStorageGet, localStorageSet } from '../storage';
 import { Icon } from './icons';
 import { ToolPanel } from './panels';
 import { Inspector } from './inspector';
@@ -21,12 +20,8 @@ export function Game(props: { onExit: () => void }) {
     mapRef.current = gm;
     (globalThis as any).__gm = gm;
     bindTools(gm);
-    const local = store.clock?.mode === 'manual';
-    let raf = 0, last = performance.now(), lastClock = 0, stopped = false;
+    let raf = 0, lastClock = 0, stopped = false;
     const frame = (ts: number) => {
-      const dt = Math.min(0.5, (ts - last) / 1000);
-      last = ts;
-      store.tickLocal(dt);
       gm.overlay?.draw();
       if (ts - lastClock > 250) { lastClock = ts; clockText.value = gameDate(store.now(), store.clock?.start_date); }
       raf = requestAnimationFrame(frame);
@@ -37,12 +32,11 @@ export function Game(props: { onExit: () => void }) {
       if (busy || stopped) return;
       busy = true;
       try {
-        if (local) { await store.flushTime(); await maybeRunBots(); }
         await store.sync();
       } catch (e) { console.warn('sync', e); } finally { busy = false; }
-    }, local ? 1000 : 3000);
-    // In the shared world any client may advance the economy; the server ignores calls that are not due.
-    const settleTimer = local ? 0 : setInterval(() => { store.query('settle').catch(() => undefined); }, 20000);
+    }, 3000);
+    // Any client may advance the shared economy; the server ignores calls that are not due yet.
+    const settleTimer = setInterval(() => { store.query('settle').catch(() => undefined); }, 20000);
     // pop up notifications that arrive while playing
     let seenNotice = Math.max(0, ...[...store.notices.keys()]);
     const dispose = effect(() => {
@@ -63,7 +57,7 @@ export function Game(props: { onExit: () => void }) {
     });
     return () => {
       stopped = true;
-      cancelAnimationFrame(raf); clearInterval(syncTimer); if (settleTimer) clearInterval(settleTimer);
+      cancelAnimationFrame(raf); clearInterval(syncTimer); clearInterval(settleTimer);
       dispose(); disposeLayers(); gm.map.remove(); mapRef.current = null;
     };
   }, []);
@@ -117,14 +111,11 @@ function GettingStarted() {
   );
 }
 
-const SPEEDS = [0, 1, 5, 20, 60];
-
 function TopBar(_props: { onExit: () => void }) {
   void store.version.value;
   const me = store.me;
   const unread = [...store.notices.values()].filter((n) => !n.read).length;
   const pending = [...store.offers.values()].filter((o) => o.to_co === store.uid && o.status === 'pending').length;
-  const local = store.clock?.mode === 'manual';
   const net = me?.stats?.net_h ?? 0;
   const div = store.config.xp_level_div || 300;
   const lvl = me?.level ?? 1;
@@ -152,15 +143,7 @@ function TopBar(_props: { onExit: () => void }) {
       </div>
       <div class="clock">
         <span>{clockText.value}</span>
-        {local ? (
-          <div class="speeds" role="group">
-            {SPEEDS.map((s) => (
-              <button class={store.speed.value === s ? 'on' : ''} onClick={() => { store.speed.value = s; }} title={s === 0 ? t('top.speed.pause') : `${s}×`}>
-                {s === 0 ? <Icon name="pause" size={14} /> : `${s}×`}
-              </button>
-            ))}
-          </div>
-        ) : <span class="live">● LIVE</span>}
+        <span class="live">● LIVE</span>
       </div>
       <nav class="top-actions">
         {btn('lines', 'train', t('win.lines'))}

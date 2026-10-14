@@ -1,10 +1,8 @@
 import { signal } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
-import { LocalBackend, localStorageGet, localStorageSet } from '../backend/local';
 import { OnlineBackend } from '../backend/online';
 import { loadOnlineConfig, type OnlineConfig } from '../config';
 import { store } from '../game/store';
-import { setupBots } from '../game/bots';
 import { lang, setLang, t, money, errorText } from '../i18n';
 import { Game } from './Game';
 import { randomColor } from './state';
@@ -41,26 +39,6 @@ async function enterGame() {
   phase.value = store.me ? 'game' : 'found';
 }
 
-async function startLocal() {
-  phase.value = 'loading';
-  loadingFailed.value = false;
-  loadingText.value = t('loading.boot');
-  loadingPct.value = 0.02;
-  localStorageSet('rk.mode', 'local');
-  const lb = new LocalBackend();
-  lb.onProgress = (step, pct) => { loadingText.value = t(`loading.${step}`); loadingPct.value = pct; };
-  try {
-    await lb.init();
-    store.backend = lb;
-    await enterGame();
-  } catch (e) {
-    console.error(e);
-    lb.close();
-    loadingText.value = errorText(e);
-    loadingFailed.value = true;
-  }
-}
-
 let onlineConfig: OnlineConfig | null = null;
 
 async function startOnline() {
@@ -69,7 +47,6 @@ async function startOnline() {
   loadingFailed.value = false;
   loadingText.value = t('loading');
   loadingPct.value = 0.3;
-  localStorageSet('rk.mode', 'online');
   const ob = new OnlineBackend(onlineConfig.supabaseUrl, onlineConfig.supabaseAnonKey);
   store.backend = ob;
   try {
@@ -84,7 +61,6 @@ async function startOnline() {
 function Start() {
   const [cfg, setCfg] = useState<OnlineConfig | null | undefined>(undefined);
   useEffect(() => { loadOnlineConfig().then((c) => { onlineConfig = c; setCfg(c); }); }, []);
-  const last = localStorageGet('rk.mode');
   return (
     <div class="screen start">
       <LangSwitch />
@@ -93,19 +69,12 @@ function Start() {
         <h1>{t('app.title')}</h1>
         <p class="tagline">{t('app.tagline')}</p>
       </div>
-      <div class="mode-cards">
-        <button class={`mode-card ${last !== 'online' ? 'preferred' : ''}`} onClick={startLocal}>
-          <h2>{t('mode.local')}</h2>
-          <p>{t('mode.local.desc')}</p>
-          <span class="cta">{t('mode.play')} →</span>
-        </button>
-        <button class={`mode-card ${last === 'online' ? 'preferred' : ''}`} disabled={!cfg} onClick={startOnline}>
-          <h2>{t('mode.online')}</h2>
-          <p>{cfg === null ? t('mode.online.missing') : t('mode.online.desc')}</p>
-          {cfg ? <span class="cta">{t('mode.play')} →</span> : null}
-        </button>
+      <div class="start-card card narrow">
+        <p>{t('start.desc')}</p>
+        {cfg === null ? <p class="error">{t('start.missing')}</p> : null}
+        <button class="primary wide big" disabled={!cfg} onClick={startOnline}>{t('mode.play')} →</button>
       </div>
-      <p class="credits">geoBoundaries · TÜİK 2025 (TurkiyeAPI) · GeoNames · Natural Earth · Tilezen · MapLibre · PGlite</p>
+      <p class="credits">geoBoundaries · TÜİK 2025 (TurkiyeAPI) · GeoNames · Natural Earth · Tilezen · MapLibre · Supabase</p>
     </div>
   );
 }
@@ -156,17 +125,13 @@ function Auth() {
 function Found() {
   const [name, setName] = useState('');
   const [color, setColor] = useState(randomColor());
-  const [bots, setBots] = useState(3);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const local = store.backend?.mode === 'local';
   const submit = async (e: Event) => {
     e.preventDefault();
     setBusy(true); setErr('');
     try {
       await store.act('join', { name, color });
-      if (local && bots > 0) await setupBots(bots);
-      await store.sync();
       phase.value = 'game';
     } catch (ex) { setErr(errorText(ex)); } finally { setBusy(false); }
   };
@@ -177,9 +142,6 @@ function Found() {
         <h2>{t('found.title')}</h2>
         <label>{t('found.name')}<input value={name} maxLength={32} minLength={3} required autoFocus onInput={(e) => setName((e.target as HTMLInputElement).value)} placeholder="Anadolu Raylı Taşımacılık" /></label>
         <label class="inline">{t('found.color')}<input type="color" value={color} onInput={(e) => setColor((e.target as HTMLInputElement).value)} /></label>
-        {local ? (
-          <label>{t('bots.count')}: {bots}<input type="range" min={0} max={5} value={bots} onInput={(e) => setBots(Number((e.target as HTMLInputElement).value))} /></label>
-        ) : null}
         <p class="muted small">{t('found.hint', { cash: money(store.config.start_cash ?? 250000000) })}</p>
         <button type="submit" class="primary wide" disabled={busy}>{t('found.go')}</button>
         {err ? <p class="error">{err}</p> : null}

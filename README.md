@@ -1,14 +1,13 @@
 # Raylar Kıyameti
 
-A browser railway tycoon set in Turkey — all **81 provinces and 973 districts**, real 2025 populations, real terrain, and the
-existing state railway network — playable alone in your browser or together in one persistent, shared world.
+A multiplayer browser railway tycoon set in Turkey — all **81 provinces and 973 districts**, real 2025 populations, real
+terrain and the existing state railway network — in one persistent world shared by every player.
 
 > **Türkçe özet** — Türkiye’nin 81 ili ve 973 ilçesinde demiryolu şirketi kurduğun bir tarayıcı oyunu. Konvansiyonel,
 > hızlı tren, elektrikli/elektriksiz, tramvay ve metro hatları döşe; banliyö, bölgesel, anahat, YHT ve yük trenleri işlet.
 > Her oyuncunun Türk lirası bütçesi var, kredi çekebilir. Raylar sahibinindir: başkasının rayını kullanmak için sözleşme
 > yaparsın ya da raylar dinamik bir ücretle herkese açılır. Başkalarının raylarını satın almak için teklif verirsin; kimse
-> satmaya zorlanamaz. Tek oyunculu modda dünya tarayıcında çalışır (yapay zekâ rakiplerle); çok oyunculu modda herkes
-> Supabase üzerindeki ortak dünyada oynar. Kurulum aşağıda.
+> satmaya zorlanamaz. Herkes Supabase üzerindeki tek, kalıcı ve ortak dünyada oynar. Kurulum aşağıda.
 
 ## What you can do
 
@@ -53,12 +52,10 @@ Freight uses industry-weighted population (ports and industrial provinces count 
 
 ## Play it
 
-Once GitHub Pages is enabled (below) the game is at **https://upgradewastaken.github.io/raylar-kiyameti/**.
-
-- **Single player** works immediately, with no server. The whole engine runs in your browser (PostgreSQL compiled to
-  WebAssembly via PGlite) and saves in IndexedDB. The first start takes 10–20 seconds to build the world; later starts
-  are quick. You can pause or run time at 1×–60× (1× = one game minute per second) and add up to five AI rivals.
-- **Multiplayer** appears once a Supabase project is connected. Time runs for everyone at one game hour per real minute.
+Once GitHub Pages and the Supabase server are set up (below), the game is at
+**https://upgradewastaken.github.io/raylar-kiyameti/**. Press *Play*, start as a guest (or with an email account),
+name your company and you are in the shared world. Time runs for everyone at one game hour per real minute, and the
+economy keeps running while you are away.
 
 ## Deploy to GitHub Pages
 
@@ -66,9 +63,10 @@ Once GitHub Pages is enabled (below) the game is at **https://upgradewastaken.gi
 2. Merge this branch into `main` (or run the **Deploy to GitHub Pages** workflow from the Actions tab). The workflow
    builds the site and publishes it.
 
-## Turn on multiplayer (Supabase, free tier is enough)
+## Set up the game server (Supabase, free tier is enough)
 
-GitHub Pages only serves static files, so the shared world lives in a Supabase project (Postgres + auth). All game
+GitHub Pages only serves static files, so the shared world lives in a Supabase project (Postgres + auth). Until it is
+connected the start page says the server is not set up. All game
 rules run inside the database as SQL functions — the browser only calls one function, `game_rpc` — so players cannot
 cheat by editing the page. The public key in the page is meant to be public.
 
@@ -95,15 +93,17 @@ cheat by editing the page. The public key in the page is meant to be public.
 ```sh
 npm install
 npm run dev            # http://localhost:5173
-npm test               # engine tests in PGlite
+npm test               # engine tests (in-process Postgres via PGlite, no server needed)
 npm run build          # type-check and production build into dist/
 npm run balance        # economics of typical lines (payback times)
 ```
 
 - `PG_URL=postgres://… npm run test:pg` runs the engine tests on a real PostgreSQL server (checked on 15).
-- `npm run e2e` drives the offline game in headless Chromium (start `npx vite preview --port 4173` first);
-  `npm run e2e:online` plays a two-player session against a Supabase-compatible backend
-  (`tests/online/stack.mjs` assembles one locally from Postgres, Supabase Auth and PostgREST).
+- Browser tests (`npm run e2e`, `npm run e2e:more`, `npm run e2e:online`) play the game in headless Chromium against
+  a Supabase-compatible backend: `tests/online/stack.mjs` assembles one locally from Postgres, Supabase Auth and
+  PostgREST and points `dist/config.json` at it; serve the build with `npx vite preview --port 4173`.
+- For `npm run dev` against a real project, put its URL and anon key in `public/config.json` or `.env.local`
+  (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
 - `npm run data:fetch && npm run data` rebuilds the world data from the original sources.
 
 ### Layout
@@ -112,8 +112,8 @@ npm run balance        # economics of typical lines (payback times)
 |---|---|
 | `sql/engine/` | The game: schema, balance (`02_config.sql`), terrain survey, construction, lines and timetables, demand and settlement, market, API |
 | `sql/seed/` | Generated world data: provinces, districts, population points, terrain grids, the state railway |
-| `src/backend/` | `local.worker.ts` runs the engine in PGlite; `online.ts` calls Supabase |
-| `src/game/` | Client mirror of the world (revision-based sync), route finding, deterministic train positions, AI rivals |
+| `src/backend/` | Supabase sign-in and the single `game_rpc` call |
+| `src/game/` | Client mirror of the world (revision-based sync), route finding, deterministic train positions |
 | `src/map/` | MapLibre map built from our own data, train overlay |
 | `src/ui/` | Preact interface |
 | `tools/build-data/` | Data pipeline |
@@ -130,7 +130,7 @@ shared game clock rather than streamed.
 - Elevation: Mapzen/Tilezen terrain tiles on AWS Open Data (SRTM, GMTED2010, ETOPO1 and others).
 - Labels: Noto Sans glyphs (SIL Open Font License) from `smp-noto-glyphs`.
 - Optional detailed map: © OpenStreetMap contributors.
-- Built with MapLibre GL JS, PGlite, Supabase, Preact and Vite.
+- Built with MapLibre GL JS, Supabase, Preact and Vite; PGlite runs the engine tests.
 
 The state railway in the game is a simplified, fictional stand-in for the real network; company names and figures in
 the game are not those of real organisations.

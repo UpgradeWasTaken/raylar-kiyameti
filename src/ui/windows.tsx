@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { store, NPC_ID } from '../game/store';
-import type { LocalBackend } from '../backend/local';
 import type { OnlineBackend } from '../backend/online';
 import { t, money, nf, pct, gameDate, duration, lang, setLang, noteText } from '../i18n';
 import type { Notice, Offer } from '../game/types';
@@ -378,22 +377,8 @@ function SettingsWin({ close, onExit }: { close: () => void; onExit: () => void 
         <label class="check"><input type="checkbox" checked={l.osm} onChange={set('osm')} />{t('settings.osm')}</label>
       </fieldset>
       <fieldset class="editor">
-        <legend>{t('settings.mode')}: {be?.mode === 'local' ? t('mode.local') : t('mode.online')}</legend>
-        {be?.mode === 'local' ? (
-          <>
-            <button onClick={async () => {
-              const blob = await (be as LocalBackend).exportSave();
-              const a = document.createElement('a');
-              a.href = URL.createObjectURL(blob); a.download = `raylar-kiyameti-${Date.now()}.tar.gz`; a.click();
-              setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-            }}>{t('settings.export')}</button>
-            <button class="danger" onClick={async () => { if (!(await confirmAction())) return; await (be as LocalBackend).reset(); onExit(); }}>{t('settings.new_game')}</button>
-          </>
-        ) : (
-          <button onClick={async () => { await (be as OnlineBackend).signOut(); onExit(); }}>{t('auth.signout')}</button>
-        )}
+        <button onClick={async () => { await (be as OnlineBackend).signOut(); onExit(); }}>{t('auth.signout')}</button>
         <button class="danger" onClick={async () => { if (!(await confirmAction())) return; try { await store.act('restart_company'); toast('✔'); } catch (e) { toastError(e); } }}>{t('settings.restart')}</button>
-        <button onClick={onExit}>{t('settings.switch_mode')}</button>
       </fieldset>
     </Win>
   );

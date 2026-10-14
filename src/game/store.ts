@@ -1,6 +1,5 @@
 import { signal } from '@preact/signals';
 import type { Backend } from '../backend/types';
-import { GameError } from '../backend/types';
 import type {
   ChatMsg, Clock, Company, Contract, Line, Loan, NodeRec, Notice, Offer, Segment, Station, StationKind, SyncPayload, TrackKind, TrainModel,
 } from './types';
@@ -38,10 +37,6 @@ class Store {
 
   clock: Clock | null = null;
   private serverOffsetMs = 0;
-  /** Offline mode drives its own clock; this is the client-side game time in hours. */
-  localHours = 0;
-  serverHours = 0;
-  speed = signal(1);
 
   get uid() { return this.backend?.uid ?? null; }
   get me(): Company | undefined { return this.uid ? this.companies.get(this.uid) : undefined; }
@@ -56,11 +51,11 @@ class Store {
     this.version.value++;
   }
 
-  /** Current game time in hours, interpolated between syncs. */
+  /** Current game time in hours: the shared world clock runs continuously, so it is interpolated between syncs. */
   now(): number {
     const c = this.clock;
     if (!c) return 0;
-    if (c.mode === 'manual') return this.localHours;
+    if (c.mode !== 'realtime') return c.now;
     return c.epoch_hours + ((Date.now() + this.serverOffsetMs - c.epoch_real_ms) / 1000) * c.scale / 3600;
   }
 
@@ -71,11 +66,8 @@ class Store {
     if (p.train_models) this.trainModels = new Map(p.train_models.map((k) => [k.id, k]));
     if (p.config) this.config = Object.fromEntries(Object.entries(p.config).map(([k, v]) => [k, Number(v)]));
     if (p.clock) {
-      const first = !this.clock;
       this.clock = p.clock;
       this.serverOffsetMs = p.clock.server_ms - Date.now();
-      this.serverHours = p.clock.manual_hours;
-      if (p.clock.mode === 'manual' && (first || this.localHours < p.clock.manual_hours)) this.localHours = p.clock.manual_hours;
     }
     for (const c of p.companies) { this.companies.set(c.id, num(c, ['balance', 'value', 'debt'])); changed = true; }
     if (p.nodes.length) {
@@ -158,7 +150,6 @@ class Store {
 
   /** Run a game action, then pull the changes it caused. */
   async act<T = any>(action: string, args: Record<string, unknown> = {}): Promise<T> {
-    if (this.clock?.mode === 'manual') await this.flushTime();
     const r = await this.backend!.rpc<T>(action, args);
     await this.sync();
     return r;
@@ -166,30 +157,6 @@ class Store {
 
   async query<T = any>(action: string, args: Record<string, unknown> = {}): Promise<T> {
     return this.backend!.rpc<T>(action, args);
-  }
-
-  // ------------------------------------------------------------------ offline clock
-  private advancing: Promise<unknown> | null = null;
-
-  tickLocal(dtRealSec: number) {
-    if (this.clock?.mode !== 'manual') return;
-    // speed 1 = one game minute per real second (the same pace as the shared world)
-    this.localHours += (dtRealSec * this.speed.value * 60) / 3600;
-  }
-
-  /** Push the locally elapsed game time to the engine (settles the economy). */
-  async flushTime() {
-    if (this.clock?.mode !== 'manual') return;
-    if (this.advancing) await this.advancing;
-    let pending = this.localHours - this.serverHours;
-    while (pending > 1e-4) {
-      const h = Math.min(pending, 48);
-      this.advancing = this.backend!.rpc('admin', { op: 'advance', hours: h }).catch((e) => { if (!(e instanceof GameError)) throw e; });
-      await this.advancing;
-      this.advancing = null;
-      this.serverHours += h;
-      pending -= h;
-    }
   }
 }
 

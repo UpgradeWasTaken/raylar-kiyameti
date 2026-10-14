@@ -1,12 +1,7 @@
-export type Mode = 'local' | 'online';
-
 export interface Backend {
-  readonly mode: Mode;
   /** Id of the signed-in player (auth uid), or null before sign-in. */
   uid: string | null;
   rpc<T = any>(action: string, args?: Record<string, unknown>): Promise<T>;
-  /** Run an action as another company (offline AI rivals only). */
-  rpcAs?<T = any>(uid: string, action: string, args?: Record<string, unknown>): Promise<T>;
   close?(): void;
 }
 

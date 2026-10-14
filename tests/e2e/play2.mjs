@@ -1,16 +1,9 @@
-// More UI paths of the offline game: upgrading track, running and editing a line on your own track,
-// loans, a usage contract with the state, closing a line, demolition and switching language.
-import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
+// More UI paths: upgrading track, access settings, a line on your own track, loans, a usage contract with
+// the state, closing a line, demolition and switching language.
 import assert from 'node:assert/strict';
+import { launch, joinAsGuest, step, RUN, OFFSET, SHOTS } from './helpers.mjs';
 
-const require = createRequire(`${execSync('npm root -g').toString().trim()}/`);
-const { chromium } = require('playwright');
-const URL = process.env.GAME_URL || 'http://localhost:4173/';
-const SHOTS = process.env.SHOTS || '.scratch';
-const step = (s) => console.log(`• ${s}`);
-
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
+const browser = await launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'tr-TR' });
 const page = await ctx.newPage();
 page.on('dialog', (d) => d.accept());
@@ -19,17 +12,11 @@ const get = (fn, arg) => page.evaluate(fn, arg);
 const mine = (what) => get((w) => [...window.__rk[w].values()].filter((x) => x.owner === window.__rk.uid), what);
 const toast = () => page.locator('.toast').last().textContent({ timeout: 5000 }).catch(() => '');
 
-await page.goto(URL);
-await page.click('.mode-card >> nth=0');
-await page.waitForSelector('.screen.found input', { timeout: 180000 });
-await page.fill('.screen.found input:not([type])', 'Yükselt AŞ');
-await page.fill('.screen.found input[type=range]', '0');
-await page.click('.screen.found button.primary');
-await page.waitForSelector('.topbar .company', { timeout: 60000 });
+await joinAsGuest(page, `Yükselt AŞ ${RUN}`, '#ea580c');
 await page.click('.getting-started .close');
 
 step('lay track between two stations on open land west of Sivas');
-await get(() => window.__gm.map.jumpTo({ center: [36.75, 39.80], zoom: 10.5 }));
+await get((dx) => window.__gm.map.jumpTo({ center: [36.75 + dx, 39.80], zoom: 10.5 }), OFFSET);
 await page.waitForTimeout(1200);
 await page.click('.toolbar button >> nth=2');
 await page.mouse.click(500, 450);

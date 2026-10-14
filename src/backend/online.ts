@@ -3,7 +3,6 @@ import { Backend, GameError, parseDetail } from './types';
 
 /** Shared world on Supabase: every rule runs server-side in the same SQL engine. */
 export class OnlineBackend implements Backend {
-  readonly mode = 'online' as const;
   uid: string | null = null;
   readonly client: SupabaseClient;
 

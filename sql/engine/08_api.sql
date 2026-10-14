@@ -13,7 +13,6 @@ create index if not exists chat_rev on game.chat(rev);
 
 create or replace function game.join(p_uid uuid, args jsonb) returns jsonb language plpgsql as $$
 declare c game.companies; nm text := btrim(coalesce(args ->> 'name', '')); color text := coalesce(args ->> 'color', '#2563eb');
-  kind text := case when args ->> 'kind' = 'bot' then 'bot' else 'player' end;
 begin
   if p_uid is null then perform game.err('not_signed_in'); end if;
   select * into c from game.companies where id = p_uid;
@@ -21,9 +20,8 @@ begin
   if length(nm) < 3 or length(nm) > 32 then perform game.err('bad_name'); end if;
   if color !~ '^#[0-9a-fA-F]{6}$' then perform game.err('bad_color'); end if;
   if exists (select 1 from game.companies where game.name_key(name) = game.name_key(nm)) then perform game.err('name_taken'); end if;
-  if kind = 'bot' and (select clock_mode from game.world where id = 1) <> 'manual' then kind := 'player'; end if;
   insert into game.companies(id, name, color, kind, balance, created_hours)
-  values (p_uid, nm, color, kind, game.cfg('start_cash'), game.now_h()) returning * into c;
+  values (p_uid, nm, color, 'player', game.cfg('start_cash'), game.now_h()) returning * into c;
   insert into game.ledger(company, hours, kind, amount, memo) values (p_uid, game.now_h(), 'start', c.balance, '{}');
   perform game.notify(p_uid, 'welcome', jsonb_build_object('cash', c.balance));
   perform game.announce('company_founded', jsonb_build_object('company', nm));
@@ -208,7 +206,7 @@ begin
   return jsonb_build_object('segments', n_seg, 'stations', n_st);
 end $$;
 
--- Offline (single-player) helpers. Refused unless the world clock is manual, which it never is on a shared server.
+-- Test helpers (step the clock by hand). Refused unless the world clock is manual, which it never is on the live server.
 create or replace function game.admin(p_action text, args jsonb) returns jsonb language plpgsql as $$
 declare w game.world; h double precision;
 begin

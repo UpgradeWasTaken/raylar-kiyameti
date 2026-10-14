@@ -1,32 +1,16 @@
 // Multiplayer end-to-end test: two players in two browsers share one world through Supabase
 // (or the local stand-in from tests/online/stack.mjs). Player A builds open-access track, player B runs a
 // line on it and pays A, they chat, and B buys a piece of A's track through an accepted offer.
-import { createRequire } from 'node:module';
-import { execSync } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { launch, joinAsGuest, step, SHOTS } from './helpers.mjs';
 
-const require = createRequire(`${execSync('npm root -g').toString().trim()}/`);
-const { chromium } = require('playwright');
-const URL = process.env.GAME_URL || 'http://localhost:4173/';
-const SHOTS = process.env.SHOTS || '.scratch';
-const step = (s) => console.log(`• ${s}`);
-
-const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--enable-unsafe-swiftshader'] });
+const browser = await launch();
 
 async function player(name, color) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 820 }, locale: 'tr-TR' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.log(`[${name} pageerror]`, e.message));
-  await page.goto(URL);
-  await page.waitForSelector('.mode-card:not([disabled]) >> nth=1', { timeout: 20000 });
-  await page.click('.mode-card >> nth=1');
-  await page.waitForSelector('.screen.auth button.primary', { timeout: 30000 });
-  await page.click('.screen.auth button.primary');
-  await page.waitForSelector('.screen.found input', { timeout: 30000 });
-  await page.fill('.screen.found input:not([type])', name);
-  await page.fill('.screen.found input[type=color]', color);
-  await page.click('.screen.found button.primary');
-  await page.waitForSelector('.topbar .company', { timeout: 30000 });
+  await joinAsGuest(page, name, color);
   const act = (action, args) => page.evaluate(([a, x]) => window.__rk.act(a, x), [action, args]);
   const get = (fn, arg) => page.evaluate(fn, arg);
   return { page, act, get };
@@ -86,7 +70,7 @@ await A.page.click('.window .offer button.primary');
 await B.page.waitForFunction((id) => window.__rk.segments.get(id)?.owner === window.__rk.uid, tr.segment, { timeout: 20000 });
 step('ownership moved to B');
 
-step('rules are enforced server-side: B cannot use offline-only admin actions or spend money it lacks');
+step('rules are enforced server-side: B cannot use test-only admin actions or spend money it lacks');
 await assert.rejects(B.act('admin', { op: 'advance', hours: 10 }), (e) => /admin_disabled/.test(e.message));
 await assert.rejects(B.act('take_loan', { amount: 1e13 }), (e) => /credit_limit/.test(e.message));
 await B.page.screenshot({ path: `${SHOTS}/online-2-b.png` });
