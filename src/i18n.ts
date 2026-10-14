@@ -192,6 +192,11 @@ const tr: Dict = {
   'offer.duration': 'Süre (oyun günü)',
   'offer.whole': 'Şirketin tüm ağı',
   'offer.selected': 'Seçili {n} ray, {m} istasyon',
+  'offer.assets': '{n} ray parçası, {m} istasyon',
+  'tips.title': 'Nasıl başlanır?',
+  'tips.1': '“Hat oluştur”u seç, bir tren seç ve gri devlet istasyonlarına sırayla tıkla — örneğin İzmir → Manisa → Afyonkarahisar → Eskişehir → Ankara.',
+  'tips.2': '“Tahmin” ile yolcu ve kârı gör; doluluk %100 ise tren ekle. Sonra “Hattı aç”.',
+  'tips.3': 'Para geldikçe kendi raylarını döşe, istasyon kur, raylarını ücretle başkalarına aç ya da sat.',
   'offer.message': 'Mesaj',
   'offer.send': 'Gönder',
   'offer.status.pending': 'Bekliyor',
@@ -252,7 +257,7 @@ const tr: Dict = {
 <h3>Para</h3>
 <p>Varlıklarına göre kredi çekebilirsin. Kasa eksiye düşerse otomatik kredi kullanılır; kredi de biterse 48 oyun saati içinde toparlanamayan şirket iflas eder ve rayları devlete geçer.</p>
 <h3>Seviyeler</h3>
-<p>Taşıdığın yolcu ve yük ile yaptığın yatırımlar deneyim kazandırır. Metro 2., hızlı tren rayı 4., YHT-300 5. seviyede açılır.</p>`,
+<p>Taşıdığın yolcu ve yük ile yaptığın yatırımlar deneyim kazandırır. Metro ve banliyö treni 2., elektrikli anahat ve yük trenleri 3., hızlı tren rayı 4., YHT-300 5. seviyede açılır.</p>`,
   // engine error codes
   'err.insufficient_funds': 'Yetersiz bakiye (gereken {need}).',
   'err.crosses_border': 'Hat Türkiye sınırlarının dışına çıkıyor.',
@@ -514,6 +519,11 @@ const en: Dict = {
   'offer.duration': 'Duration (game days)',
   'offer.whole': 'Their whole network',
   'offer.selected': '{n} track pieces, {m} stations selected',
+  'offer.assets': '{n} track pieces, {m} stations',
+  'tips.title': 'Getting started',
+  'tips.1': 'Pick “New line”, choose a train and click grey State Railways stations in order — e.g. İzmir → Manisa → Afyonkarahisar → Eskişehir → Ankara.',
+  'tips.2': 'Use “Forecast” to see riders and profit; add trains if the load hits 100%. Then “Open line”.',
+  'tips.3': 'As money comes in, lay your own track, build stations, and open your track to others for a fee — or sell it.',
   'offer.message': 'Message',
   'offer.send': 'Send',
   'offer.status.pending': 'Pending',
@@ -574,7 +584,7 @@ const en: Dict = {
 <h3>Money</h3>
 <p>Borrow against your assets. If cash goes negative, credit is drawn automatically; when credit runs out and you do not recover within 48 game hours, the company goes bankrupt and its track passes to the state.</p>
 <h3>Levels</h3>
-<p>Passengers, freight and investment earn experience. Metro unlocks at level 2, high-speed track at 4, the YHT-300 at 5.</p>`,
+<p>Passengers, freight and investment earn experience. Metro and suburban trains unlock at level 2, electric intercity and freight trains at 3, high-speed track at 4, the YHT-300 at 5.</p>`,
   'err.insufficient_funds': 'Not enough money (need {need}).',
   'err.crosses_border': 'The track leaves Turkey.',
   'err.water_too_wide': 'Water crossing too wide (6 km bridge/tunnel at most).',

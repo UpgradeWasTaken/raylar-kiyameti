@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDb, rpc, uid } from './helpers.mjs';
 import { stationByName, legsFor, buildCorridor } from './sim.mjs';

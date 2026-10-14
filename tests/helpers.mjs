@@ -8,8 +8,12 @@ export const ENGINE_FILES = fs.readdirSync(path.join(ROOT, 'sql/engine')).filter
 export const SEED_FILES = fs.readdirSync(path.join(ROOT, 'sql/seed')).filter((f) => f.endsWith('.sql')).sort()
   .map((f) => path.join(ROOT, 'sql/seed', f));
 
+/**
+ * A fresh game database: PGlite in-process by default, or a real PostgreSQL server when PG_URL is set
+ * (e.g. PG_URL=postgres://postgres@localhost:54315/postgres) to check compatibility with Supabase's Postgres.
+ */
 export async function createDb({ seed = true, manual = true } = {}) {
-  const db = new PGlite();
+  const db = process.env.PG_URL ? await serverDb(process.env.PG_URL) : new PGlite();
   await db.waitReady;
   await db.exec(fs.readFileSync(path.join(ROOT, 'sql/pglite_shim.sql'), 'utf8'));
   for (const f of ENGINE_FILES) {
@@ -20,6 +24,26 @@ export async function createDb({ seed = true, manual = true } = {}) {
     try { await db.exec(fs.readFileSync(f, 'utf8')); } catch (e) { throw new Error(`${path.basename(f)}: ${e.message}`); }
   }
   return db;
+}
+
+async function serverDb(url) {
+  const { default: pg } = await import('pg');
+  const admin = new pg.Client({ connectionString: url });
+  await admin.connect();
+  const name = `rk_test_${process.pid}`;
+  await admin.query(`drop database if exists ${name}`);
+  await admin.query(`create database ${name}`);
+  await admin.end();
+  const u = new URL(url);
+  u.pathname = `/${name}`;
+  const client = new pg.Client({ connectionString: u.toString() });
+  await client.connect();
+  return {
+    waitReady: Promise.resolve(),
+    query: (sql, params) => client.query(sql, params),
+    exec: (sql) => client.query(sql),
+    close: () => client.end(),
+  };
 }
 
 export class GameError extends Error {

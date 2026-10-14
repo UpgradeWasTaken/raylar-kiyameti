@@ -7,8 +7,9 @@ import { findRoute } from '../game/graph';
 import type { Cat, LngLat } from '../game/types';
 import { t } from '../i18n';
 import {
-  lineDraft, multiSel, selection, stationDraft, tool, toast, toastError, trackDraft, win, confirmAction, type TrackDraft,
+  lineDraft, multiSel, selection, stationDraft, tool, toast, toastError, trackDraft, win, confirmAction, hover, type TrackDraft,
 } from './state';
+import { money, nf } from '../i18n';
 
 export function endpointSpec(s: Snap) {
   if (s.kind === 'station' || s.kind === 'node') return { node: s.node };
@@ -226,7 +227,10 @@ export function bindTools(gm: GameMap) {
     }
   });
 
+  m.on('mouseout', () => { hover.value = null; });
   m.on('mousemove', (e: MapMouseEvent) => {
+    if (tool.value === 'inspect' || tool.value === 'demolish') { hover.value = describe(gm, e); return; }
+    hover.value = null;
     if (tool.value === 'track') {
       const d = trackDraft.value;
       if (d.done || !d.ctrl.length) return;
@@ -293,6 +297,37 @@ export function bindTools(gm: GameMap) {
     if (tool.value !== 'line') gm.selectedSegments = new Set(sel?.type === 'segment' ? [sel.id, ...multiSel.value] : multiSel.value);
     gm.selectStation(sel?.type === 'station' ? sel.id : null);
   });
+}
+
+function ownerName(id: string) {
+  const c = store.companies.get(id);
+  return id === store.uid ? `${c?.name ?? ''} (${t('common.you')})` : c?.name ?? '?';
+}
+
+function describe(gm: GameMap, e: MapMouseEvent) {
+  const p = gm.pick(e);
+  const at = { x: e.point.x, y: e.point.y };
+  if (p.type === 'line') {
+    const l = store.lines.get(p.id!);
+    if (!l) return null;
+    return { ...at, lines: [`🚆 ${l.name}`, `${store.trainModels.get(l.model)?.name ?? ''} · ${ownerName(l.owner)}`] };
+  }
+  if (p.type === 'station') {
+    const s = store.stations.get(p.id!);
+    if (!s) return null;
+    const n = [...store.lines.values()].filter((l) => l.stops.includes(s.id)).length;
+    return { ...at, lines: [`${s.name}`, `${t(`skind.${s.kind}`)} · ${ownerName(s.owner)}`, `${nf(s.catch_local)} 👤 · ${n} ${t('win.lines').toLowerCase()}`] };
+  }
+  if (p.type === 'segment') {
+    const s = store.segments.get(p.id!);
+    if (!s) return null;
+    const fee = s.access_fee * (1 + 2 * Math.min(s.util, 2) ** 2);
+    return { ...at, lines: [`${t(`kind.${s.kind}`)}${s.electrified ? ' ⚡' : ''} · ${nf(s.length_km, 1)} ${t('common.km')} · ${nf(s.max_speed)} ${t('common.kmh')}`,
+      ownerName(s.owner),
+      s.open_access ? `${t('seg.open')} · ${money(fee)}/${t('common.km')}` : t('seg.closed'),
+      ...(s.sale_price !== null ? [`${t('seg.for_sale')}: ${money(s.sale_price)}`] : [])] };
+  }
+  return null;
 }
 
 export function finishTrack() {

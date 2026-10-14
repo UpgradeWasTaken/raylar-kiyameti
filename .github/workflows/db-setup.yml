@@ -1,0 +1,26 @@
+# Installs or upgrades the multiplayer database on Supabase.
+# Add the repository secret SUPABASE_DB_URL (Supabase → Connect → "Session pooler" connection string,
+# with your database password filled in), then run this workflow from the Actions tab.
+name: Set up multiplayer database
+
+on:
+  workflow_dispatch:
+    inputs:
+      reseed:
+        description: 'Wipe the world and start over (all companies are lost)'
+        type: boolean
+        default: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node tools/db-setup.mjs ${{ inputs.reseed && '--reseed' || '' }}
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}

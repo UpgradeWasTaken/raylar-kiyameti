@@ -48,6 +48,9 @@ export function toastError(e: unknown) {
 
 export const mapRef: { current: GameMap | null } = { current: null };
 
+/** What is under the mouse in inspect mode, for the hover tooltip. */
+export const hover = signal<{ x: number; y: number; lines: string[] } | null>(null);
+
 export const layers = signal<{ hillshade: boolean; osm: boolean; population: boolean; districts: boolean }>({ hillshade: true, osm: false, population: false, districts: true });
 
 export function randomColor() {

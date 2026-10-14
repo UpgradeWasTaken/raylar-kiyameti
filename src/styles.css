@@ -255,3 +255,10 @@ summary { cursor: pointer; color: var(--muted); }
   .cols { grid-template-columns: 1fr; }
   .company .name { max-width: 120px; }
 }
+
+.hover-tip { position: absolute; z-index: 7; pointer-events: none; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 1px; box-shadow: var(--shadow); max-width: 280px; }
+.hover-tip span { color: var(--muted); }
+.getting-started { position: absolute; left: 88px; bottom: 30px; width: 340px; padding: 14px 16px; z-index: 4; background: var(--panel); border: 1px solid rgba(245, 165, 36, 0.5); border-radius: var(--radius); box-shadow: var(--shadow); }
+.getting-started .close { position: absolute; right: 8px; top: 8px; }
+.getting-started ol { padding-left: 18px; margin: 6px 0; line-height: 1.45; color: var(--muted); }
+@media (max-width: 860px) { .getting-started { left: 8px; right: 8px; width: auto; bottom: 78px; } .hover-tip { display: none; } }

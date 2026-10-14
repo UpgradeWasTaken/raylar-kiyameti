@@ -5,7 +5,8 @@ import { store } from '../game/store';
 import { maybeRunBots } from '../game/bots';
 import { t, money, gameDate, nf } from '../i18n';
 import { bindTools } from './tools';
-import { mapRef, tool, win, toasts, layers, selection, type Tool, type WindowId } from './state';
+import { mapRef, tool, win, toasts, layers, selection, hover, type Tool, type WindowId } from './state';
+import { localStorageGet, localStorageSet } from '../backend/local';
 import { Icon } from './icons';
 import { ToolPanel } from './panels';
 import { Inspector } from './inspector';
@@ -68,7 +69,43 @@ export function Game(props: { onExit: () => void }) {
       <Inspector />
       <Windows onExit={props.onExit} />
       <Toasts />
+      <HoverTip />
+      <GettingStarted />
     </div>
+  );
+}
+
+function HoverTip() {
+  const h = hover.value;
+  if (!h) return null;
+  return (
+    <div class="hover-tip" style={{ left: `${h.x + 14}px`, top: `${h.y + 14}px` }}>
+      {h.lines.map((l, i) => (i === 0 ? <b>{l}</b> : <span>{l}</span>))}
+    </div>
+  );
+}
+
+const tipsDone = signal(localStorageGet('rk.tips.done') === '1');
+
+function GettingStarted() {
+  void store.version.value;
+  const mine = [...store.lines.values()].some((l) => l.owner === store.uid);
+  if (tipsDone.value || mine || tool.value !== 'inspect' || win.value) return null;
+  const close = () => { tipsDone.value = true; localStorageSet('rk.tips.done', '1'); };
+  return (
+    <aside class="getting-started">
+      <button class="icon close" onClick={close} aria-label={t('common.close')}>✕</button>
+      <h3>{t('tips.title')}</h3>
+      <ol>
+        <li>{t('tips.1')}</li>
+        <li>{t('tips.2')}</li>
+        <li>{t('tips.3')}</li>
+      </ol>
+      <div class="row">
+        <button class="primary" onClick={() => { tool.value = 'line'; }}>{t('tool.line')} →</button>
+        <button onClick={() => { win.value = 'help'; }}>{t('win.help')}</button>
+      </div>
+    </aside>
   );
 }
 

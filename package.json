@@ -11,7 +11,9 @@
     "data:fetch": "node tools/build-data/fetch.mjs",
     "data": "node tools/build-data/index.mjs",
     "balance": "node tools/balance.mjs",
-    "e2e": "node tests/e2e/play.mjs"
+    "e2e": "node tests/e2e/play.mjs",
+    "test:pg": "node --test --test-force-exit --test-concurrency=1 tests/*.test.mjs",
+    "e2e:online": "node tests/e2e/online.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",
@@ -23,6 +25,7 @@
   "devDependencies": {
     "@preact/preset-vite": "2.10.6",
     "pbf": "3.3.0",
+    "pg": "8.23.0",
     "pngjs": "7.0.0",
     "typescript": "6.0.3",
     "vite": "8.3.1"

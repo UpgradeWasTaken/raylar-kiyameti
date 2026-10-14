@@ -183,7 +183,7 @@ function FinanceWin({ close }: { close: () => void }) {
 function offerSummary(o: Offer) {
   const parts = [t(`offer.kind.${o.kind}`)];
   if (o.whole_network) parts.push(t('offer.whole'));
-  else parts.push(t('offer.selected', { n: o.segment_ids.length, m: o.station_ids.length }));
+  else parts.push(t('offer.assets', { n: o.segment_ids.length, m: o.station_ids.length }));
   if (o.price) parts.push(money(o.price));
   if (o.fee_km !== null && o.kind.startsWith('access')) parts.push(`${nf(o.fee_km)} ₺/km · ${nf(o.fee_stop ?? 0)} ₺/⏹ · ${duration(o.duration_hours ?? 0)}`);
   return parts.join(' · ');
@@ -259,7 +259,7 @@ function MarketWin({ close }: { close: () => void }) {
             {contracts.map((c) => (
               <li class="offer">
                 <div class="offer-head"><CompanyTag id={c.grantor} /> → <CompanyTag id={c.grantee} /></div>
-                <p>{c.segment_ids === null ? t('offer.whole') : t('offer.selected', { n: c.segment_ids.length, m: c.station_ids?.length ?? 0 })} · {nf(c.fee_km)} ₺/km · {nf(c.fee_stop)} ₺/⏹ · {duration(Math.max(0, c.end_hours - store.now()))}</p>
+                <p>{c.segment_ids === null ? t('offer.whole') : t('offer.assets', { n: c.segment_ids.length, m: c.station_ids?.length ?? 0 })} · {nf(c.fee_km)} ₺/km · {nf(c.fee_stop)} ₺/⏹ · {duration(Math.max(0, c.end_hours - store.now()))}</p>
                 {c.grantee === me ? <button onClick={async () => { if (!(await confirmAction())) return; try { await store.act('end_contract', { contract: c.id }); } catch (e) { toastError(e); } }}>{t('market.end')}</button> : null}
               </li>
             ))}
