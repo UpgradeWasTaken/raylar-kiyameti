@@ -64,6 +64,17 @@ step('chat between players');
 await A.act('chat', { text: 'Raylarım herkese açık, hoş geldin!' });
 await B.page.waitForFunction(() => window.__rk.chat.some((m) => m.body.includes('herkese açık')), null, { timeout: 20000 });
 
+step('new companies cannot trade yet; after some play (level 2) they can');
+await assert.rejects(B.act('make_offer', { to: ids.a, kind: 'buy', segments: [tr.segment], price: 1e8 }), (e) => /trade_level/.test(e.message));
+if (process.env.STACK_DB_URL !== 'none') {
+  // fast-forward experience directly in the database (only possible for whoever runs the server)
+  const { default: pg } = await import('pg');
+  const db = new pg.Client({ connectionString: process.env.STACK_DB_URL || 'postgres://postgres@localhost:54315/rk_online' });
+  await db.connect();
+  await db.query('update game.companies set xp = 1000, level = 2 where id = any($1::uuid[])', [[ids.a, ids.b]]);
+  await db.end();
+}
+
 step('B offers to buy the track; A accepts in the market window');
 const off = await B.act('make_offer', { to: ids.a, kind: 'buy', segments: [tr.segment], price: 200000000, message: 'Satar mısın?' });
 assert.equal(off.status, 'pending');

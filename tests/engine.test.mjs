@@ -31,6 +31,9 @@ test('joining validates names and grants starting cash', async () => {
   await rejects(rpc(db, B, 'join', { name: 'ALFA RAYLI', color: '#00ff00' }), 'name_taken');
   await rpc(db, B, 'join', { name: 'Beta Demiryolu', color: '#00ff00' });
   await rpc(db, C, 'join', { name: 'Gama Lojistik', color: '#0000ff' });
+  // new companies cannot trade with each other yet
+  await rejects(rpc(db, A, 'make_offer', { to: B, kind: 'access_request', whole_network: true, fee_km: 10, fee_stop: 10, duration_hours: 48 }), 'trade_level');
+  await db.query(`update game.companies set xp = 2000, level = 3 where id in ($1, $2, $3)`, [A, B, C]);
   await rejects(rpc(db, uid(99), 'build_track', {}), 'no_company');
   await rejects(rpc(db, null, 'join', { name: 'Nobody', color: '#000000' }), 'not_signed_in');
 });
@@ -124,6 +127,7 @@ test('buying and selling infrastructure', async () => {
   const off = await rpc(db, C, 'make_offer', { to: B, kind: 'buy', segments: [seg.id], price: 50000000 });
   await rpc(db, B, 'respond_offer', { offer: off.offer, accept: false, note: 'too low' });
   assert.equal((await db.query('select status from game.offers where id = $1', [off.offer])).rows[0].status, 'rejected');
+  await rejects(rpc(db, C, 'make_offer', { to: B, kind: 'buy', segments: [seg.id], price: Math.round(Number(seg.book_value) * 6 + 2e6) }), 'price_cap');
   const off2 = await rpc(db, C, 'make_offer', { to: B, kind: 'buy', segments: [seg.id], price: 80000000 });
   const [cb, bb] = [await balance(C), await balance(B)];
   await rpc(db, B, 'respond_offer', { offer: off2.offer, accept: true });

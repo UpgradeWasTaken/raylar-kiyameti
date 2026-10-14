@@ -331,6 +331,9 @@ create table if not exists game.tombstones (
 );
 create index if not exists tombstones_rev on game.tombstones(rev);
 
+-- columns added after the first release (existing worlds are upgraded in place)
+alter table game.companies add column if not exists last_estimate timestamptz;
+
 -- ---------------------------------------------------------------- revision triggers
 create or replace function game.stamp_rev() returns trigger language plpgsql as $$
 begin

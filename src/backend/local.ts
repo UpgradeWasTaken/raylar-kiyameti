@@ -33,7 +33,26 @@ export class LocalBackend implements Backend {
     });
   }
 
-  init() { return this.send<{ ok: boolean }>({ type: 'init' }); }
+  private releaseLock: (() => void) | null = null;
+
+  /** One tab at a time: two database engines on the same IndexedDB save would corrupt it. */
+  private async lockSave() {
+    if (!navigator.locks) return;
+    const got = await new Promise<boolean>((resolve) => {
+      navigator.locks.request('raylar-kiyameti-save', { ifAvailable: true }, (lock) => {
+        if (!lock) { resolve(false); return undefined; }
+        resolve(true);
+        return new Promise<void>((release) => { this.releaseLock = release; });
+      });
+    });
+    if (!got) throw new GameError('other_tab');
+  }
+
+  async init() {
+    await this.lockSave();
+    try { await navigator.storage?.persist?.(); } catch { /* best effort */ }
+    return this.send<{ ok: boolean }>({ type: 'init' });
+  }
   rpc<T = any>(action: string, args: Record<string, unknown> = {}) { return this.send<T>({ type: 'rpc', uid: this.uid, action, args }); }
   rpcAs<T = any>(uid: string, action: string, args: Record<string, unknown> = {}) { return this.send<T>({ type: 'rpc', uid, action, args }); }
 
@@ -49,7 +68,7 @@ export class LocalBackend implements Backend {
     return new Blob([buf], { type: 'application/gzip' });
   }
 
-  close() { this.worker.terminate(); }
+  close() { this.worker.terminate(); this.releaseLock?.(); this.releaseLock = null; }
 }
 
 export function localStorageGet(k: string): string | null {

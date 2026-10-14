@@ -141,8 +141,14 @@ end $$;
 
 -- Demand forecast for a planned line: create it inside a subtransaction, measure, roll back.
 create or replace function game.estimate_line(p_uid uuid, args jsonb) returns jsonb language plpgsql as $$
-declare q jsonb; r record; tm game.train_models; lid bigint; res jsonb;
+declare q jsonb; r record; tm game.train_models; lid bigint; res jsonb; last timestamptz;
 begin
+  -- a forecast recomputes the whole economy; on the shared server keep it to one every two seconds per player
+  select last_estimate into last from game.companies where id = p_uid;
+  if (select clock_mode from game.world where id = 1) = 'realtime' and last is not null and now() - last < interval '2 seconds' then
+    perform game.err('slow_down');
+  end if;
+  update game.companies set last_estimate = now() where id = p_uid;
   q := game.quote_line(p_uid, args);
   if jsonb_array_length(q -> 'errors') > 0 then return q; end if;
   select * into tm from game.train_models where id = args ->> 'model';

@@ -13,6 +13,7 @@ type Phase = 'start' | 'loading' | 'auth' | 'found' | 'game';
 const phase = signal<Phase>('start');
 const loadingText = signal('');
 const loadingPct = signal(0);
+const loadingFailed = signal(false);
 
 export function App() {
   void lang.value;
@@ -42,6 +43,7 @@ async function enterGame() {
 
 async function startLocal() {
   phase.value = 'loading';
+  loadingFailed.value = false;
   loadingText.value = t('loading.boot');
   loadingPct.value = 0.02;
   localStorageSet('rk.mode', 'local');
@@ -53,7 +55,9 @@ async function startLocal() {
     await enterGame();
   } catch (e) {
     console.error(e);
+    lb.close();
     loadingText.value = errorText(e);
+    loadingFailed.value = true;
   }
 }
 
@@ -62,6 +66,7 @@ let onlineConfig: OnlineConfig | null = null;
 async function startOnline() {
   if (!onlineConfig) return;
   phase.value = 'loading';
+  loadingFailed.value = false;
   loadingText.value = t('loading');
   loadingPct.value = 0.3;
   localStorageSet('rk.mode', 'online');
@@ -72,6 +77,7 @@ async function startOnline() {
     else phase.value = 'auth';
   } catch (e) {
     loadingText.value = errorText(e);
+    loadingFailed.value = true;
   }
 }
 
@@ -109,7 +115,9 @@ function Loading() {
     <div class="screen loading">
       <div class="logo-mark spin" aria-hidden="true"><span /><span /><span /></div>
       <p>{loadingText.value}</p>
-      <div class="progress"><div style={{ width: `${Math.round(loadingPct.value * 100)}%` }} /></div>
+      {loadingFailed.value
+        ? <button onClick={() => { phase.value = 'start'; }}>← {t('common.cancel')}</button>
+        : <div class="progress"><div style={{ width: `${Math.round(loadingPct.value * 100)}%` }} /></div>}
     </div>
   );
 }

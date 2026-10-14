@@ -5,12 +5,12 @@ import { store } from '../game/store';
 import { maybeRunBots } from '../game/bots';
 import { t, money, gameDate, nf } from '../i18n';
 import { bindTools } from './tools';
-import { mapRef, tool, win, toasts, layers, selection, hover, type Tool, type WindowId } from './state';
+import { mapRef, tool, win, toasts, layers, selection, hover, toast, type Tool, type WindowId } from './state';
 import { localStorageGet, localStorageSet } from '../backend/local';
 import { Icon } from './icons';
 import { ToolPanel } from './panels';
 import { Inspector } from './inspector';
-import { Windows } from './windows';
+import { Windows, noticeText } from './windows';
 
 const clockText = signal('');
 
@@ -43,7 +43,15 @@ export function Game(props: { onExit: () => void }) {
     }, local ? 1000 : 3000);
     // In the shared world any client may advance the economy; the server ignores calls that are not due.
     const settleTimer = local ? 0 : setInterval(() => { store.query('settle').catch(() => undefined); }, 20000);
-    const dispose = effect(() => { void store.version.value; gm.refresh(); });
+    // pop up notifications that arrive while playing
+    let seenNotice = Math.max(0, ...[...store.notices.keys()]);
+    const dispose = effect(() => {
+      void store.version.value;
+      gm.refresh();
+      const fresh = [...store.notices.values()].filter((n) => n.id > seenNotice && !n.read);
+      for (const n of fresh.slice(-3)) toast(`🔔 ${noticeText(n)}`, n.kind === 'distress' || n.kind === 'line_blocked' ? 'error' : 'info', 7000);
+      seenNotice = Math.max(seenNotice, ...fresh.map((n) => n.id));
+    });
     const disposeLayers = effect(() => {
       const l = layers.value;
       gm.ready.then(() => {

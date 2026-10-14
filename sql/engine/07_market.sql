@@ -25,13 +25,34 @@ begin
   return jsonb_build_object('segments', n1, 'stations', n2);
 end $$;
 
+-- Deals between players need some play history on both sides, so throwaway accounts cannot funnel money.
+create or replace function game.check_trade(p_a uuid, p_b uuid) returns void language plpgsql stable as $$
+declare lvl int := game.cfg('trade_min_level')::int;
+begin
+  if p_a = game.npc_id() or p_b = game.npc_id() then return; end if;
+  if (select min(level) from game.companies where id in (p_a, p_b)) < lvl then
+    perform game.err('trade_level', jsonb_build_object('level', lvl));
+  end if;
+end $$;
+
+create or replace function game.price_cap(p_book numeric) returns numeric language sql stable as $$
+  select round(p_book * game.cfg('trade_price_cap')::numeric + 1000000, 0)
+$$;
+
 create or replace function game.set_sale(p_uid uuid, args jsonb) returns jsonb language plpgsql as $$
 declare segs bigint[] := game.id_array(args -> 'segments'); sts bigint[] := game.id_array(args -> 'stations');
   mult double precision := (args ->> 'mult')::double precision; price numeric := (args ->> 'price')::numeric; n1 int; n2 int;
 begin
   perform game.require_company(p_uid);
-  if mult is not null and (mult < 0.1 or mult > 20) then perform game.err('bad_price'); end if;
+  if mult is not null and (mult < 0.1 or mult > game.cfg('trade_price_cap')) then
+    perform game.err('price_cap', jsonb_build_object('mult', game.cfg('trade_price_cap')));
+  end if;
   if price is not null and price < 0 then perform game.err('bad_price'); end if;
+  if price is not null and price > game.price_cap(coalesce(
+       (select sum(book_value) from game.segments where owner = p_uid and id = any(segs)), 0)
+     + coalesce((select sum(book_value) from game.stations where owner = p_uid and id = any(sts)), 0)) then
+    perform game.err('price_cap', jsonb_build_object('mult', game.cfg('trade_price_cap')));
+  end if;
   if price is not null and coalesce(array_length(segs, 1), 0) + coalesce(array_length(sts, 1), 0) <> 1 then perform game.err('price_needs_single_item'); end if;
   update game.segments set sale_price = case when coalesce((args ->> 'unlist')::boolean, false) then null
     when price is not null then price else round(book_value * mult::numeric, 0) end
@@ -80,6 +101,7 @@ begin
       union all select owner, sale_price, null, id from game.stations where id = any(sts)) x
     group by owner
   loop
+    perform game.check_trade(p_uid, r.owner);
     perform game.book(p_uid, -r.price, 'purchase', jsonb_build_object('from', r.owner, 'segments', r.segs, 'stations', r.sts));
     perform game.book(r.owner, r.price, 'sale', jsonb_build_object('to', p_uid, 'segments', r.segs, 'stations', r.sts));
     perform game.transfer_assets(r.owner, p_uid, coalesce(r.segs, '{}'), coalesce(r.sts, '{}'));
@@ -198,6 +220,18 @@ begin
   if exists (select 1 from game.segments where id = any(segs) and owner <> owner_needed)
      or exists (select 1 from game.stations where id = any(sts) and owner <> owner_needed) then
     perform game.err('wrong_owner');
+  end if;
+  if target.kind <> 'npc' then
+    perform game.check_trade(p_uid, to_co);
+    -- prices stay tied to what the assets are worth
+    if price > game.price_cap(case when whole then
+         coalesce((select sum(book_value) from game.segments where owner = owner_needed), 0)
+         + coalesce((select sum(book_value) from game.stations where owner = owner_needed), 0)
+       else coalesce((select sum(book_value) from game.segments where id = any(segs)), 0)
+         + coalesce((select sum(book_value) from game.stations where id = any(sts)), 0) end
+       / case when kind in ('access_request', 'access_grant') then game.cfg('trade_price_cap')::numeric else 1 end) then
+      perform game.err('price_cap', jsonb_build_object('mult', game.cfg('trade_price_cap')));
+    end if;
   end if;
   if kind = 'buy' and (select balance from game.companies where id = p_uid) < price then
     perform game.err('insufficient_funds', jsonb_build_object('need', price));

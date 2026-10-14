@@ -422,6 +422,7 @@ function OfferWin({ close }: { close: () => void }) {
   return (
     <Win title={`${t('offer.title')}: ${t(`offer.kind.${d.kind}`)}`} onClose={() => { offerDraft.value = null; close(); }}>
       <p>{t('offer.to')}: <CompanyTag id={d.to} /></p>
+      {!npc && (store.me?.level ?? 1) < (store.config.trade_min_level ?? 2) ? <p class="error small">{t('err.trade_level', { level: store.config.trade_min_level ?? 2 })}</p> : null}
       {access ? <label class="check"><input type="checkbox" checked={d.whole} onChange={(e) => set({ whole: (e.target as HTMLInputElement).checked })} />{t('offer.whole')}</label> : null}
       {!d.whole ? <p class="muted">{t('offer.selected', { n: d.segments.length, m: d.stations.length })}</p> : null}
       <label>{t('offer.price')}<input type="number" min={0} step={1000000} value={d.price} onInput={(e) => set({ price: Number((e.target as HTMLInputElement).value) })} /><small class="muted">{money(d.price)}</small></label>

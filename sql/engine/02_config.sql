@@ -21,7 +21,9 @@ insert into game.config(key, value) values
   ('distress_hours',      '48'),
   ('max_settle_hours',    '720'),
   ('metrics_every_hours', '6'),
-  ('xp_level_div',        '300')
+  ('xp_level_div',        '300'),
+  ('trade_min_level',     '2'),          -- player-to-player trades need this level on both sides (anti alt-account farming)
+  ('trade_price_cap',     '5')           -- deals and listings at most this multiple of book value
 on conflict (key) do update set value = excluded.value;
 
 insert into game.track_kinds(id, cat, max_speed, cost_km, double_mult, elec_km, always_electric, always_double,
